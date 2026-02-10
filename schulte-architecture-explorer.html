@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schulte App Architecture Explorer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #controls {
+      width: 320px;
+      background: #252525;
+      border-right: 1px solid #3a3a3a;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    #preview {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #canvas {
+      flex: 1;
+      background: #1e1e1e;
+      position: relative;
+      overflow: auto;
+      padding: 40px;
+    }
+
+    #prompt-section {
+      background: #252525;
+      border-top: 1px solid #3a3a3a;
+      padding: 16px 20px;
+    }
+
+    h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+    }
+
+    .section {
+      margin-bottom: 24px;
+    }
+
+    .preset-btn {
+      background: #333;
+      border: 1px solid #4a4a4a;
+      color: #e0e0e0;
+      padding: 8px 12px;
+      margin: 4px 4px 4px 0;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+
+    .preset-btn:hover {
+      background: #3a3a3a;
+      border-color: #5a5a5a;
+    }
+
+    .control-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: #aaa;
+      margin-bottom: 6px;
+    }
+
+    select, input[type="checkbox"] {
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      color: #e0e0e0;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      width: 100%;
+    }
+
+    input[type="checkbox"] {
+      width: auto;
+      margin-right: 8px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    /* Architecture Diagram */
+    .arch-container {
+      min-width: 1000px;
+      min-height: 700px;
+      position: relative;
+    }
+
+    .component {
+      position: absolute;
+      background: #2a2a2a;
+      border: 2px solid #4a4a4a;
+      border-radius: 8px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.3s;
+      min-width: 180px;
+    }
+
+    .component:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .component.selected {
+      border-width: 3px;
+      box-shadow: 0 0 20px rgba(100, 200, 255, 0.4);
+    }
+
+    .component.status-deployed {
+      border-color: #4ade80;
+      background: linear-gradient(135deg, #2a2a2a 0%, #1a3a2a 100%);
+    }
+
+    .component.status-implemented {
+      border-color: #fbbf24;
+      background: linear-gradient(135deg, #2a2a2a 0%, #3a3020 100%);
+    }
+
+    .component.status-infra {
+      border-color: #60a5fa;
+      background: linear-gradient(135deg, #2a2a2a 0%, #1a2a3a 100%);
+    }
+
+    .component-title {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .component-subtitle {
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+
+    .component-tech {
+      font-size: 10px;
+      color: #666;
+      font-family: 'Courier New', monospace;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-top: 8px;
+    }
+
+    .status-deployed .status-badge {
+      background: #4ade80;
+      color: #000;
+    }
+
+    .status-implemented .status-badge {
+      background: #fbbf24;
+      color: #000;
+    }
+
+    .status-infra .status-badge {
+      background: #60a5fa;
+      color: #000;
+    }
+
+    /* Arrows */
+    svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .component {
+      z-index: 1;
+    }
+
+    .arrow {
+      stroke: #4a4a4a;
+      stroke-width: 2;
+      fill: none;
+      marker-end: url(#arrowhead);
+    }
+
+    .arrow.auth-flow {
+      stroke: #a78bfa;
+      stroke-dasharray: 5, 5;
+    }
+
+    .arrow.api-call {
+      stroke: #60a5fa;
+    }
+
+    .arrow.db-query {
+      stroke: #34d399;
+    }
+
+    .arrow.sync {
+      stroke: #fbbf24;
+      stroke-dasharray: 3, 3;
+    }
+
+    /* Detail Panel */
+    #detail-panel {
+      background: #2a2a2a;
+      border: 1px solid #4a4a4a;
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 20px;
+      max-width: 600px;
+    }
+
+    #detail-panel h3 {
+      color: #60a5fa;
+      margin-bottom: 12px;
+      font-size: 16px;
+    }
+
+    #detail-panel .detail-section {
+      margin-bottom: 16px;
+    }
+
+    #detail-panel .detail-section h4 {
+      color: #888;
+      font-size: 12px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    #detail-panel .detail-section p,
+    #detail-panel .detail-section li {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #ccc;
+    }
+
+    #detail-panel ul {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    #detail-panel li {
+      padding-left: 12px;
+      position: relative;
+      margin-bottom: 4px;
+    }
+
+    #detail-panel li:before {
+      content: "›";
+      position: absolute;
+      left: 0;
+      color: #60a5fa;
+    }
+
+    #detail-panel code {
+      background: #1a1a1a;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #4ade80;
+    }
+
+    #question-input {
+      width: 100%;
+      min-height: 80px;
+      background: #1a1a1a;
+      border: 1px solid #3a3a3a;
+      color: #e0e0e0;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      resize: vertical;
+      margin-top: 8px;
+    }
+
+    #prompt-output {
+      background: #1a1a1a;
+      padding: 12px;
+      border-radius: 4px;
+      border: 1px solid #3a3a3a;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      margin-bottom: 12px;
+      white-space: pre-wrap;
+    }
+
+    #copy-btn {
+      background: #60a5fa;
+      color: #000;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+
+    #copy-btn:hover {
+      background: #3b82f6;
+    }
+
+    #copy-btn.copied {
+      background: #4ade80;
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+      font-size: 11px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <h2>Architecture Explorer</h2>
+
+    <div class="section">
+      <button class="preset-btn" onclick="loadPreset('overview')">Overview</button>
+      <button class="preset-btn" onclick="loadPreset('auth-flow')">Auth Flow</button>
+      <button class="preset-btn" onclick="loadPreset('data-flow')">Data Flow</button>
+      <button class="preset-btn" onclick="loadPreset('deployment')">Deployment</button>
+    </div>
+
+    <div class="section">
+      <h2>Filters</h2>
+      <div class="control-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="show-deployed" checked onchange="updateAll()">
+          <span>Show Deployed (Green)</span>
+        </label>
+      </div>
+      <div class="control-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="show-implemented" checked onchange="updateAll()">
+          <span>Show Implemented (Yellow)</span>
+        </label>
+      </div>
+      <div class="control-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="show-infra" checked onchange="updateAll()">
+          <span>Show Infrastructure (Blue)</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Data Flows</h2>
+      <div class="control-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="show-auth" checked onchange="updateAll()">
+          <span>Auth Flow (Purple)</span>
+        </label>
+      </div>
+      <div class="control-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="show-api" checked onchange="updateAll()">
+          <span>API Calls (Blue)</span>
+        </label>
+      </div>
+      <div class="control-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="show-db" checked onchange="updateAll()">
+          <span>DB Queries (Green)</span>
+        </label>
+      </div>
+      <div class="control-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="show-sync" checked onchange="updateAll()">
+          <span>Sync Flow (Yellow)</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>View Options</h2>
+      <div class="control-group">
+        <label>Layout</label>
+        <select id="layout" onchange="updateAll()">
+          <option value="layered">Layered (Default)</option>
+          <option value="flow">Data Flow</option>
+          <option value="deployment">Deployment View</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div id="preview">
+    <div id="canvas">
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-color" style="background: #4ade80;"></div>
+          <span>Deployed</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: #fbbf24;"></div>
+          <span>Implemented</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: #60a5fa;"></div>
+          <span>Infrastructure</span>
+        </div>
+      </div>
+      <div class="arch-container" id="arch-container">
+        <svg id="arrows"></svg>
+      </div>
+      <div id="detail-panel" style="display: none;"></div>
+    </div>
+
+    <div id="prompt-section">
+      <div id="prompt-output"></div>
+      <button id="copy-btn" onclick="copyPrompt()">Copy Prompt</button>
+    </div>
+  </div>
+
+  <script>
+    const COMPONENTS = {
+      frontend: {
+        id: 'frontend',
+        title: 'Frontend (PWA)',
+        subtitle: 'Next.js 16 + TypeScript',
+        tech: 'Vercel Hosting',
+        status: 'deployed',
+        purpose: 'Progressive Web App with offline-first architecture',
+        keyFiles: [
+          'frontend/src/app/ - App Router pages',
+          'frontend/src/components/ - UI components',
+          'frontend/src/lib/db.ts - Dexie.js IndexedDB',
+          'frontend/src/stores/game-store.ts - Zustand state'
+        ],
+        techStack: [
+          'Next.js 16 with App Router',
+          'React 19',
+          'TypeScript',
+          'Tailwind CSS v4',
+          'shadcn/ui components',
+          'Dexie.js (IndexedDB)',
+          'Zustand (state)',
+          'Framer Motion (animations)'
+        ],
+        commands: [
+          'cd frontend && npm run dev',
+          'cd frontend && npm run build',
+          'cd frontend && npm run lint'
+        ],
+        decisions: [
+          'Offline-first: App works without backend',
+          'IndexedDB for local persistence',
+          'Zustand for lightweight state management',
+          'Custom i18n solution (EN/VI)',
+          'Vercel for zero-config deployment'
+        ]
+      },
+      backend: {
+        id: 'backend',
+        title: 'Backend API',
+        subtitle: 'FastAPI + Python',
+        tech: 'AWS EC2 t2.micro',
+        status: 'implemented',
+        purpose: 'Async REST API for sync, auth, and leaderboards',
+        keyFiles: [
+          'backend/app/api/ - API endpoints',
+          'backend/app/services/ - Business logic',
+          'backend/app/repositories/ - Data access',
+          'backend/app/models/ - SQLAlchemy models',
+          'backend/alembic/ - Database migrations'
+        ],
+        techStack: [
+          'FastAPI (async)',
+          'SQLAlchemy 2.0',
+          'Alembic migrations',
+          'Pydantic v2 validation',
+          'python-jose (JWT)',
+          'boto3 (Cognito)',
+          'Ruff + mypy linting'
+        ],
+        commands: [
+          'cd backend && poetry install',
+          'cd backend && poetry run alembic upgrade head',
+          'cd backend && poetry run uvicorn app.main:app --reload',
+          'cd backend && poetry run pytest --cov'
+        ],
+        decisions: [
+          'Layered architecture: api → services → repositories → models',
+          'Session idempotency via client_session_id',
+          'Denormalized user_stats for performance',
+          'Denormalized daily_leaderboards',
+          'Async throughout for concurrency'
+        ]
+      },
+      database: {
+        id: 'database',
+        title: 'Database',
+        subtitle: 'PostgreSQL 15',
+        tech: 'RDS db.t4g.micro',
+        status: 'infra',
+        purpose: 'Relational storage for users, sessions, stats, leaderboards',
+        keyFiles: [
+          'backend/app/models/ - SQLAlchemy models',
+          'backend/alembic/versions/ - Migrations',
+          'infrastructure/modules/database/ - Terraform RDS config'
+        ],
+        techStack: [
+          'PostgreSQL 15',
+          'RDS db.t4g.micro (free tier)',
+          'Single-AZ deployment',
+          'Private subnet (EC2 access only)',
+          'SSM Parameter Store (password)'
+        ],
+        commands: [
+          'aws rds describe-db-instances --region ap-southeast-1',
+          'aws ssm get-parameter --name /schulte/dev/db-password --with-decryption'
+        ],
+        decisions: [
+          'Private subnet: only EC2 can access',
+          'Single-AZ: free tier, no multi-AZ needed yet',
+          'SSM for secrets: free vs Secrets Manager $0.40/secret',
+          'Denormalized stats/leaderboards for read performance',
+          'JSONB column for tap_events in sessions'
+        ]
+      },
+      cognito: {
+        id: 'cognito',
+        title: 'Auth (Cognito)',
+        subtitle: 'User Pool + Social',
+        tech: 'AWS Cognito',
+        status: 'infra',
+        purpose: 'User authentication with email and social login',
+        keyFiles: [
+          'infrastructure/modules/auth/ - Terraform Cognito config',
+          'backend/app/core/auth.py - JWT validation',
+          'backend/app/api/v1/auth.py - Auth endpoints'
+        ],
+        techStack: [
+          'Cognito User Pool',
+          'Social IdPs (Google, Apple)',
+          'JWT tokens',
+          'Hosted UI for social login',
+          'Always free tier (50K MAU)'
+        ],
+        commands: [
+          'aws cognito-idp list-user-pools --max-results 10',
+          'aws cognito-idp describe-user-pool --user-pool-id <pool-id>'
+        ],
+        decisions: [
+          'Cognito over custom auth: free + managed',
+          'Social login via hosted UI + code exchange',
+          'JWT validation in backend with python-jose',
+          'User linking: Cognito sub → users table',
+          'No password policy customization (use defaults)'
+        ]
+      },
+      terraform: {
+        id: 'terraform',
+        title: 'Infrastructure',
+        subtitle: 'Terraform IaC',
+        tech: 'S3 + DynamoDB backend',
+        status: 'infra',
+        purpose: 'Infrastructure as Code for reproducible AWS deployments',
+        keyFiles: [
+          'infrastructure/awsenv/bootstrap/ - S3/DynamoDB for state',
+          'infrastructure/awsenv/env/dev/ - Dev environment',
+          'infrastructure/modules/ - Reusable modules',
+          'infrastructure/scripts/user-data.sh - EC2 bootstrap'
+        ],
+        techStack: [
+          'Terraform >= 1.5',
+          'S3 backend (state)',
+          'DynamoDB (state locking)',
+          'Modular architecture',
+          'ap-southeast-1 region'
+        ],
+        commands: [
+          'cd infrastructure/awsenv/bootstrap && terraform init',
+          'cd infrastructure/awsenv/env/dev && terraform plan -var-file=dev.tfvars',
+          'cd infrastructure/awsenv/env/dev && terraform apply -var-file=dev.tfvars'
+        ],
+        decisions: [
+          'Bootstrap pattern: S3+DynamoDB created separately',
+          'Modular structure: networking, compute, database, auth',
+          'No NAT Gateway: EC2 in public subnet',
+          'Free tier optimized: $0/month within limits',
+          'SSM Parameter Store over Secrets Manager'
+        ]
+      },
+      cloudflare: {
+        id: 'cloudflare',
+        title: 'CloudFlare',
+        subtitle: 'HTTPS + DNS',
+        tech: 'Free Tier',
+        status: 'infra',
+        purpose: 'SSL/TLS termination and DNS management for backend',
+        keyFiles: [
+          'External service - not in repo',
+          'Configuration done via CloudFlare dashboard'
+        ],
+        techStack: [
+          'CloudFlare DNS',
+          'SSL/TLS encryption',
+          'DDoS protection',
+          'Free tier'
+        ],
+        commands: [
+          'Manual CloudFlare dashboard configuration',
+          'Point A record to EC2 Elastic IP'
+        ],
+        decisions: [
+          'CloudFlare over ALB: free + better features',
+          'HTTPS termination at CloudFlare edge',
+          'EC2 serves HTTP (CloudFlare proxies)',
+          'DNS managed externally (not in Terraform)'
+        ]
+      },
+      vercel: {
+        id: 'vercel',
+        title: 'Vercel',
+        subtitle: 'Frontend Hosting',
+        tech: 'Free Tier',
+        status: 'deployed',
+        purpose: 'Static site hosting with global CDN for Next.js frontend',
+        keyFiles: [
+          'frontend/vercel.json - Deployment config',
+          'Automatic deployment from git push'
+        ],
+        techStack: [
+          'Vercel platform',
+          'Next.js optimized',
+          'Global CDN',
+          'Automatic HTTPS',
+          'Custom domain support'
+        ],
+        commands: [
+          'git push (auto-deploys)',
+          'vercel --prod (manual deploy)'
+        ],
+        decisions: [
+          'Vercel over S3+CloudFront: Next.js optimized',
+          'Auto-deploy from git push',
+          'Free tier: generous for personal projects',
+          'Custom domain configured'
+        ]
+      }
+    };
+
+    const state = {
+      selectedComponent: null,
+      questionText: '',
+      showDeployed: true,
+      showImplemented: true,
+      showInfra: true,
+      showAuth: true,
+      showApi: true,
+      showDb: true,
+      showSync: true,
+      layout: 'layered'
+    };
+
+    const LAYOUTS = {
+      layered: {
+        frontend: { x: 50, y: 50 },
+        vercel: { x: 50, y: 200 },
+        cloudflare: { x: 350, y: 120 },
+        backend: { x: 350, y: 280 },
+        cognito: { x: 650, y: 50 },
+        database: { x: 650, y: 280 },
+        terraform: { x: 650, y: 450 }
+      },
+      flow: {
+        frontend: { x: 50, y: 200 },
+        vercel: { x: 50, y: 350 },
+        cognito: { x: 300, y: 50 },
+        backend: { x: 450, y: 200 },
+        database: { x: 750, y: 200 },
+        cloudflare: { x: 300, y: 350 },
+        terraform: { x: 600, y: 450 }
+      },
+      deployment: {
+        vercel: { x: 50, y: 100 },
+        frontend: { x: 50, y: 250 },
+        cloudflare: { x: 400, y: 100 },
+        terraform: { x: 400, y: 450 },
+        cognito: { x: 650, y: 50 },
+        backend: { x: 650, y: 250 },
+        database: { x: 650, y: 400 }
+      }
+    };
+
+    const CONNECTIONS = [
+      { from: 'frontend', to: 'backend', type: 'api-call', label: 'REST API' },
+      { from: 'frontend', to: 'cognito', type: 'auth-flow', label: 'Auth' },
+      { from: 'backend', to: 'database', type: 'db-query', label: 'SQL' },
+      { from: 'backend', to: 'cognito', type: 'auth-flow', label: 'JWT Verify' },
+      { from: 'frontend', to: 'backend', type: 'sync', label: 'Sync Sessions' },
+      { from: 'vercel', to: 'frontend', type: 'api-call', label: 'Hosts' },
+      { from: 'cloudflare', to: 'backend', type: 'api-call', label: 'HTTPS Proxy' }
+    ];
+
+    function selectComponent(id) {
+      state.selectedComponent = id;
+      updateAll();
+    }
+
+    function renderComponents() {
+      const container = document.getElementById('arch-container');
+      const layout = LAYOUTS[state.layout];
+
+      // Clear existing components
+      const existingComponents = container.querySelectorAll('.component');
+      existingComponents.forEach(el => el.remove());
+
+      Object.values(COMPONENTS).forEach(comp => {
+        // Filter based on status
+        if (comp.status === 'deployed' && !state.showDeployed) return;
+        if (comp.status === 'implemented' && !state.showImplemented) return;
+        if (comp.status === 'infra' && !state.showInfra) return;
+
+        const pos = layout[comp.id];
+        if (!pos) return;
+
+        const el = document.createElement('div');
+        el.className = `component status-${comp.status}`;
+        if (state.selectedComponent === comp.id) {
+          el.classList.add('selected');
+        }
+
+        el.style.left = pos.x + 'px';
+        el.style.top = pos.y + 'px';
+
+        el.innerHTML = `
+          <div class="component-title">${comp.title}</div>
+          <div class="component-subtitle">${comp.subtitle}</div>
+          <div class="component-tech">${comp.tech}</div>
+          <div class="status-badge">${comp.status}</div>
+        `;
+
+        el.onclick = () => selectComponent(comp.id);
+        container.appendChild(el);
+      });
+    }
+
+    function renderArrows() {
+      const svg = document.getElementById('arrows');
+      const layout = LAYOUTS[state.layout];
+
+      let arrowsHtml = `
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <polygon points="0 0, 10 3, 0 6" fill="#4a4a4a" />
+          </marker>
+          <marker id="arrowhead-auth" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <polygon points="0 0, 10 3, 0 6" fill="#a78bfa" />
+          </marker>
+          <marker id="arrowhead-api" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <polygon points="0 0, 10 3, 0 6" fill="#60a5fa" />
+          </marker>
+          <marker id="arrowhead-db" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <polygon points="0 0, 10 3, 0 6" fill="#34d399" />
+          </marker>
+          <marker id="arrowhead-sync" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <polygon points="0 0, 10 3, 0 6" fill="#fbbf24" />
+          </marker>
+        </defs>
+      `;
+
+      CONNECTIONS.forEach(conn => {
+        const fromComp = COMPONENTS[conn.from];
+        const toComp = COMPONENTS[conn.to];
+
+        // Filter based on status visibility
+        if (fromComp.status === 'deployed' && !state.showDeployed) return;
+        if (fromComp.status === 'implemented' && !state.showImplemented) return;
+        if (fromComp.status === 'infra' && !state.showInfra) return;
+        if (toComp.status === 'deployed' && !state.showDeployed) return;
+        if (toComp.status === 'implemented' && !state.showImplemented) return;
+        if (toComp.status === 'infra' && !state.showInfra) return;
+
+        // Filter based on flow type
+        if (conn.type === 'auth-flow' && !state.showAuth) return;
+        if (conn.type === 'api-call' && !state.showApi) return;
+        if (conn.type === 'db-query' && !state.showDb) return;
+        if (conn.type === 'sync' && !state.showSync) return;
+
+        const fromPos = layout[conn.from];
+        const toPos = layout[conn.to];
+
+        if (!fromPos || !toPos) return;
+
+        const x1 = fromPos.x + 90;
+        const y1 = fromPos.y + 50;
+        const x2 = toPos.x + 90;
+        const y2 = toPos.y + 50;
+
+        const markerId = `arrowhead-${conn.type}`;
+
+        arrowsHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="arrow ${conn.type}" marker-end="url(#${markerId})" />`;
+      });
+
+      svg.innerHTML = arrowsHtml;
+    }
+
+    function renderDetailPanel() {
+      const panel = document.getElementById('detail-panel');
+
+      if (!state.selectedComponent) {
+        panel.style.display = 'none';
+        return;
+      }
+
+      const comp = COMPONENTS[state.selectedComponent];
+      panel.style.display = 'block';
+
+      panel.innerHTML = `
+        <h3>${comp.title}</h3>
+
+        <div class="detail-section">
+          <h4>Purpose & Status</h4>
+          <p>${comp.purpose}</p>
+          <p><strong>Status:</strong> ${comp.status.toUpperCase()}</p>
+        </div>
+
+        <div class="detail-section">
+          <h4>Key Files</h4>
+          <ul>
+            ${comp.keyFiles.map(file => `<li><code>${file}</code></li>`).join('')}
+          </ul>
+        </div>
+
+        <div class="detail-section">
+          <h4>Tech Stack</h4>
+          <ul>
+            ${comp.techStack.map(tech => `<li>${tech}</li>`).join('')}
+          </ul>
+        </div>
+
+        <div class="detail-section">
+          <h4>Commands</h4>
+          <ul>
+            ${comp.commands.map(cmd => `<li><code>${cmd}</code></li>`).join('')}
+          </ul>
+        </div>
+
+        <div class="detail-section">
+          <h4>Design Decisions</h4>
+          <ul>
+            ${comp.decisions.map(dec => `<li>${dec}</li>`).join('')}
+          </ul>
+        </div>
+
+        <div class="detail-section">
+          <h4>Your Question/Comment</h4>
+          <textarea id="question-input" placeholder="Ask a question about ${comp.title}, request changes, or add comments...">${state.questionText}</textarea>
+        </div>
+      `;
+
+      // Attach event listener to textarea
+      const textarea = document.getElementById('question-input');
+      if (textarea) {
+        textarea.addEventListener('input', (e) => {
+          state.questionText = e.target.value;
+          updatePrompt();
+        });
+      }
+    }
+
+    function updatePrompt() {
+      const output = document.getElementById('prompt-output');
+
+      if (!state.selectedComponent) {
+        output.textContent = 'Click on any component in the architecture diagram to explore it and ask questions.';
+        return;
+      }
+
+      const comp = COMPONENTS[state.selectedComponent];
+      let prompt = `# Question about ${comp.title}\n\n`;
+      prompt += `**Component:** ${comp.title} (${comp.subtitle})\n`;
+      prompt += `**Status:** ${comp.status.toUpperCase()}\n`;
+      prompt += `**Purpose:** ${comp.purpose}\n\n`;
+
+      if (state.questionText.trim()) {
+        prompt += `## My Question/Request:\n\n${state.questionText}\n\n`;
+      } else {
+        prompt += `## Context:\n\n`;
+      }
+
+      prompt += `**Key Files:**\n`;
+      comp.keyFiles.forEach(file => {
+        prompt += `- ${file}\n`;
+      });
+
+      prompt += `\n**Tech Stack:** ${comp.techStack.join(', ')}\n\n`;
+
+      if (!state.questionText.trim()) {
+        prompt += `Please help me understand this component better or suggest improvements.`;
+      }
+
+      output.textContent = prompt;
+    }
+
+    function updateAll() {
+      // Update state from controls
+      state.showDeployed = document.getElementById('show-deployed').checked;
+      state.showImplemented = document.getElementById('show-implemented').checked;
+      state.showInfra = document.getElementById('show-infra').checked;
+      state.showAuth = document.getElementById('show-auth').checked;
+      state.showApi = document.getElementById('show-api').checked;
+      state.showDb = document.getElementById('show-db').checked;
+      state.showSync = document.getElementById('show-sync').checked;
+      state.layout = document.getElementById('layout').value;
+
+      renderComponents();
+      renderArrows();
+      renderDetailPanel();
+      updatePrompt();
+    }
+
+    function loadPreset(name) {
+      switch (name) {
+        case 'overview':
+          state.showDeployed = true;
+          state.showImplemented = true;
+          state.showInfra = true;
+          state.showAuth = true;
+          state.showApi = true;
+          state.showDb = true;
+          state.showSync = true;
+          state.layout = 'layered';
+          break;
+        case 'auth-flow':
+          state.showDeployed = true;
+          state.showImplemented = true;
+          state.showInfra = true;
+          state.showAuth = true;
+          state.showApi = false;
+          state.showDb = false;
+          state.showSync = false;
+          state.layout = 'flow';
+          selectComponent('cognito');
+          break;
+        case 'data-flow':
+          state.showDeployed = true;
+          state.showImplemented = true;
+          state.showInfra = true;
+          state.showAuth = false;
+          state.showApi = true;
+          state.showDb = true;
+          state.showSync = true;
+          state.layout = 'flow';
+          selectComponent('backend');
+          break;
+        case 'deployment':
+          state.showDeployed = false;
+          state.showImplemented = true;
+          state.showInfra = true;
+          state.showAuth = false;
+          state.showApi = false;
+          state.showDb = false;
+          state.showSync = false;
+          state.layout = 'deployment';
+          selectComponent('terraform');
+          break;
+      }
+
+      // Update UI
+      document.getElementById('show-deployed').checked = state.showDeployed;
+      document.getElementById('show-implemented').checked = state.showImplemented;
+      document.getElementById('show-infra').checked = state.showInfra;
+      document.getElementById('show-auth').checked = state.showAuth;
+      document.getElementById('show-api').checked = state.showApi;
+      document.getElementById('show-db').checked = state.showDb;
+      document.getElementById('show-sync').checked = state.showSync;
+      document.getElementById('layout').value = state.layout;
+
+      updateAll();
+    }
+
+    function copyPrompt() {
+      const output = document.getElementById('prompt-output');
+      const btn = document.getElementById('copy-btn');
+
+      navigator.clipboard.writeText(output.textContent).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy Prompt';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
+    // Initialize
+    updateAll();
+  </script>
+</body>
+</html>

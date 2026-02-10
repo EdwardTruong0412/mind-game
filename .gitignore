@@ -17,6 +17,9 @@ Thumbs.db
 # Claude Code auto memory
 .claude/
 
+# Claude Code project instructions (keep local only)
+CLAUDE.md
+
 # Python
 __pycache__/
 *.py[cod]
