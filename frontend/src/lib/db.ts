@@ -31,9 +31,21 @@ class SchulteDatabase extends Dexie {
   constructor() {
     super('SchulteDB');
 
+    // Version 1: Initial schema
     this.version(1).stores({
       sessions: '++id, oderId, startedAt, gridSize, status',
       profile: 'id',
+    });
+
+    // Version 2: Add sync status fields
+    this.version(2).stores({
+      sessions: '++id, oderId, startedAt, gridSize, status, syncStatus',
+      profile: 'id',
+    }).upgrade(async (tx) => {
+      // Add default sync status to existing sessions
+      await tx.table('sessions').toCollection().modify((session: TrainingSession) => {
+        session.syncStatus = 'local-only';
+      });
     });
   }
 }
@@ -79,6 +91,11 @@ export async function updateStats(
 }
 
 export async function saveSession(session: TrainingSession): Promise<number> {
+  // Ensure sync status is set (default to local-only for new sessions)
+  if (!session.syncStatus) {
+    session.syncStatus = 'local-only';
+  }
+
   const id = await db.sessions.add(session);
 
   // Update stats
@@ -144,4 +161,65 @@ export async function getSessionById(id: number): Promise<TrainingSession | unde
 
 export async function deleteSession(id: number): Promise<void> {
   await db.sessions.delete(id);
+}
+
+// Sync-related functions
+
+/**
+ * Update sync status for a session
+ */
+export async function updateSessionSyncStatus(
+  oderId: string,
+  syncStatus: TrainingSession['syncStatus'],
+  options?: {
+    cloudId?: string;
+    syncedAt?: string;
+    syncError?: string;
+  }
+): Promise<void> {
+  const session = await db.sessions.where('oderId').equals(oderId).first();
+  if (!session) {
+    console.warn(`Session ${oderId} not found`);
+    return;
+  }
+
+  const updates: Partial<TrainingSession> = { syncStatus };
+
+  if (options?.cloudId) {
+    updates.cloudId = options.cloudId;
+  }
+  if (options?.syncedAt) {
+    updates.syncedAt = options.syncedAt;
+  }
+  if (options?.syncError) {
+    updates.syncError = options.syncError;
+  }
+
+  await db.sessions.where('oderId').equals(oderId).modify(updates);
+}
+
+/**
+ * Get all unsynced sessions (local-only or sync-failed)
+ */
+export async function getUnsyncedSessions(): Promise<TrainingSession[]> {
+  return db.sessions
+    .where('syncStatus')
+    .equals('local-only')
+    .or('syncStatus')
+    .equals('sync-failed')
+    .toArray();
+}
+
+/**
+ * Get sessions that failed to sync
+ */
+export async function getFailedSyncSessions(): Promise<TrainingSession[]> {
+  return db.sessions.where('syncStatus').equals('sync-failed').toArray();
+}
+
+/**
+ * Get a session by oderId
+ */
+export async function getSessionByOderId(oderId: string): Promise<TrainingSession | undefined> {
+  return db.sessions.where('oderId').equals(oderId).first();
 }

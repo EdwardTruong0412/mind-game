@@ -7,6 +7,8 @@ export interface TapEvent {
   timestampMs: number;
 }
 
+export type SyncStatus = 'local-only' | 'syncing' | 'synced' | 'sync-failed';
+
 export interface TrainingSession {
   id?: number;
   oderId: string;
@@ -20,6 +22,11 @@ export interface TrainingSession {
   mistakes: number;
   accuracy: number;
   tapEvents: TapEvent[];
+  // Sync fields
+  syncStatus: SyncStatus;
+  cloudId?: string;        // Backend-generated ID
+  syncedAt?: string;       // When last synced
+  syncError?: string;      // Error message if sync failed
 }
 
 export interface UserPreferences {

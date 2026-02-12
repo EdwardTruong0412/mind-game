@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import type { GameState, GameStatus, TapEvent } from '@/types';
+import type { GameState, GameStatus, TapEvent, TrainingSession } from '@/types';
 import {
   generateGrid,
   getStartingTarget,
@@ -8,7 +8,8 @@ import {
   isGameComplete,
   calculateAccuracy,
 } from '@/lib/game-logic';
-import { saveSession } from '@/lib/db';
+import { saveSession, getSessionByOderId } from '@/lib/db';
+import { syncSingleSession } from '@/lib/sync';
 
 interface GameStore extends GameState {
   // Actions
@@ -139,7 +140,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const totalCells = gridSize * gridSize;
     const accuracy = calculateAccuracy(totalCells, mistakes);
 
-    const session = {
+    const session: TrainingSession = {
       oderId: sessionId,
       gridSize,
       maxTime,
@@ -151,11 +152,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
       mistakes,
       accuracy,
       tapEvents,
+      syncStatus: 'local-only', // Default sync status
     };
 
     try {
       const id = await saveSession(session);
       set({ status: reason === 'completed' ? 'completed' : reason === 'timeout' ? 'timeout' : 'idle' });
+
+      // Trigger sync in background (don't block on this)
+      // Check if user is authenticated before syncing
+      const savedSession = await getSessionByOderId(sessionId);
+      if (savedSession) {
+        syncSingleSession(savedSession).catch((error) => {
+          console.error('Background sync failed:', error);
+          // Sync will be retried automatically by useSync hook
+        });
+      }
+
       return id;
     } catch (error) {
       console.error('Failed to save session:', error);

@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Play, History, Settings, Sun, Moon, Monitor, HelpCircle, Eye, Target, Clock, Trophy, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Play, History, Settings, Sun, Moon, Monitor, HelpCircle, Eye, Target, Clock, Trophy, Globe, ChevronLeft, ChevronRight, LogIn, UserPlus, LogOut, User, Award } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSettings, useTheme } from '@/hooks/use-settings';
 import { useTranslation } from '@/hooks/use-language';
 import { useGameStore } from '@/stores/game-store';
+import { useAuth } from '@/hooks/use-auth';
 import { formatTimeShort } from '@/lib/game-logic';
 import { cn } from '@/lib/utils';
+import { ProfileEditModal } from '@/components/profile/profile-edit-modal';
 
 // Grid size options: 4x4 to 10x10
 const GRID_SIZES = [4, 5, 6, 7, 8, 9, 10];
@@ -19,12 +21,14 @@ export default function HomePage() {
   const { theme, setTheme } = useTheme();
   const { language, setLanguage, t } = useTranslation();
   const { initGame } = useGameStore();
+  const { user, isAuthenticated, logout } = useAuth();
 
   const [gridSize, setGridSize] = useState(5);
   const [maxTime, setMaxTime] = useState(120);
   const [orderMode, setOrderMode] = useState<'ASC' | 'DESC'>('ASC');
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
 
   // Sync with saved preferences
   useEffect(() => {
@@ -96,6 +100,16 @@ export default function HomePage() {
           >
             <History className="h-5 w-5" />
           </Button>
+          {isAuthenticated && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.push('/leaderboards')}
+              title={t('leaderboards')}
+            >
+              <Trophy className="h-5 w-5" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -251,6 +265,34 @@ export default function HomePage() {
           <Play className="w-5 h-5 mr-2" />
           {t('startTraining')}
         </Button>
+
+        {/* Auth CTAs for anonymous users */}
+        {!isAuthenticated && (
+          <div className="w-full space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <p className="text-sm text-center text-gray-600 dark:text-gray-400">
+              {language === 'vi'
+                ? 'Đăng nhập để đồng bộ tiến trình và xem bảng xếp hạng'
+                : 'Sign in to sync progress and view leaderboards'}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => router.push('/auth/login')}
+              >
+                <LogIn className="w-4 h-4 mr-2" />
+                {t('login')}
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => router.push('/auth/register')}
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                {t('register')}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* How to Play modal */}
@@ -368,6 +410,41 @@ export default function HomePage() {
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Account section (if authenticated) */}
+              {isAuthenticated && user && (
+                <div className="space-y-3 pb-6 border-b border-gray-200 dark:border-gray-700">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    {language === 'vi' ? 'Tài khoản' : 'Account'}
+                  </label>
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-2">
+                    <p className="font-medium">{user.display_name}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setShowProfileEdit(true)}
+                    >
+                      <User className="w-4 h-4 mr-2" />
+                      {language === 'vi' ? 'Sửa' : 'Edit'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={async () => {
+                        await logout();
+                        setShowSettings(false);
+                      }}
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      {t('logout')}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* Language */}
               <div className="space-y-2">
                 <label className="text-sm font-medium flex items-center gap-2">
@@ -481,6 +558,12 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* Profile Edit Modal */}
+      <ProfileEditModal
+        isOpen={showProfileEdit}
+        onClose={() => setShowProfileEdit(false)}
+      />
     </main>
   );
 }

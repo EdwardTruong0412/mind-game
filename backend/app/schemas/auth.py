@@ -17,19 +17,25 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class TokenResponse(BaseModel):
+class UserInfo(BaseModel):
+    """User information returned on login."""
+    id: str
+    email: str
+    display_name: str
+    avatar_url: str | None = None
+
+
+class LoginResponse(BaseModel):
+    """Login response. Refresh token is set as httpOnly cookie."""
     access_token: str
     id_token: str
-    refresh_token: str
     token_type: str = "Bearer"
     expires_in: int
-
-
-class RefreshRequest(BaseModel):
-    refresh_token: str
+    user: UserInfo
 
 
 class RefreshResponse(BaseModel):
+    """Token refresh response."""
     access_token: str
     id_token: str
     token_type: str = "Bearer"

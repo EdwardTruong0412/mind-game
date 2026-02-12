@@ -1,19 +1,19 @@
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Cookie, Depends, Header, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.core.database import get_db
 from app.repositories.user import UserRepository
 from app.schemas.auth import (
     ConfirmRequest,
     ForgotPasswordRequest,
     LoginRequest,
+    LoginResponse,
     MessageResponse,
-    RefreshRequest,
     RefreshResponse,
     RegisterRequest,
     ResetPasswordRequest,
     SocialAuthRequest,
-    TokenResponse,
 )
 from app.services.auth import AuthService
 
@@ -57,28 +57,86 @@ async def confirm(body: ConfirmRequest) -> MessageResponse:
     return MessageResponse(message="Email confirmed successfully. You can now log in.")
 
 
-@router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest) -> TokenResponse:
-    """Log in and receive JWT tokens."""
+@router.post("/login", response_model=LoginResponse)
+async def login(
+    body: LoginRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> LoginResponse:
+    """Log in and receive JWT tokens. Refresh token is set as httpOnly cookie."""
     auth_service = AuthService()
     tokens = await auth_service.login(email=body.email, password=body.password)
-    return TokenResponse(**tokens)
+
+    # Fetch user from database
+    user_repo = UserRepository(db)
+    user = await user_repo.get_by_email(body.email)
+    if not user:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found in database",
+        )
+
+    # Set refresh token as httpOnly cookie
+    settings = get_settings()
+    response.set_cookie(
+        key="refresh_token",
+        value=tokens["refresh_token"],
+        httponly=True,
+        secure=settings.app_environment != "dev",  # HTTPS only in production
+        samesite="lax",
+        max_age=30 * 24 * 60 * 60,  # 30 days
+        path="/",
+    )
+
+    # Import UserInfo here to avoid circular import
+    from app.schemas.auth import UserInfo
+
+    # Return tokens without refresh_token in body
+    return LoginResponse(
+        access_token=tokens["access_token"],
+        id_token=tokens["id_token"],
+        token_type="Bearer",
+        expires_in=tokens["expires_in"],
+        user=UserInfo(
+            id=user.cognito_sub,
+            email=user.email,
+            display_name=user.display_name,
+            avatar_url=user.avatar_url,
+        ),
+    )
 
 
 @router.post("/refresh", response_model=RefreshResponse)
-async def refresh(body: RefreshRequest) -> RefreshResponse:
-    """Refresh access token using refresh token."""
+async def refresh(
+    refresh_token: str | None = Cookie(default=None),
+) -> RefreshResponse:
+    """Refresh access token using refresh token from httpOnly cookie."""
+    if not refresh_token:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token not found",
+        )
+
     auth_service = AuthService()
-    tokens = await auth_service.refresh_token(refresh_token=body.refresh_token)
+    tokens = await auth_service.refresh_token(refresh_token=refresh_token)
     return RefreshResponse(**tokens)
 
 
 @router.post("/logout", response_model=MessageResponse)
-async def logout(authorization: str = Header()) -> MessageResponse:
-    """Invalidate all user tokens (global sign out)."""
+async def logout(
+    response: Response,
+    authorization: str = Header(),
+) -> MessageResponse:
+    """Invalidate all user tokens (global sign out) and clear refresh token cookie."""
     token = authorization.replace("Bearer ", "")
     auth_service = AuthService()
     await auth_service.logout(access_token=token)
+
+    # Clear refresh token cookie
+    response.delete_cookie(key="refresh_token", path="/")
+
     return MessageResponse(message="Logged out successfully")
 
 

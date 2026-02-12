@@ -9,6 +9,7 @@ import { getRecentSessions, deleteSession } from '@/lib/db';
 import { formatTime, formatTimeShort } from '@/lib/game-logic';
 import { cn } from '@/lib/utils';
 import type { TrainingSession } from '@/types';
+import { SyncStatusIndicator } from '@/components/sync/sync-status-indicator';
 
 export default function HistoryPage() {
   const router = useRouter();
@@ -82,18 +83,21 @@ export default function HistoryPage() {
                     {session.orderMode === 'ASC' ? '↑' : '↓'}
                   </span>
                 </div>
-                <span
-                  className={cn(
-                    'text-xs px-2 py-1 rounded-full',
-                    session.status === 'completed'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                      : session.status === 'timeout'
-                      ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                  )}
-                >
-                  {session.status}
-                </span>
+                <div className="flex items-center gap-2">
+                  <SyncStatusIndicator status={session.syncStatus} />
+                  <span
+                    className={cn(
+                      'text-xs px-2 py-1 rounded-full',
+                      session.status === 'completed'
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                        : session.status === 'timeout'
+                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                    )}
+                  >
+                    {session.status}
+                  </span>
+                </div>
               </div>
               <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
                 <span>{formatTimeShort(session.completionTimeMs)}</span>
