@@ -140,7 +140,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const newTokens: AuthTokens = {
         accessToken: response.access_token,
         idToken: response.id_token,
-        refreshToken: response.refresh_token,
+        refreshToken: '', // Refresh token is in httpOnly cookie, not needed in memory
         expiresAt: calculateExpiresAt(response.expires_in),
       };
 

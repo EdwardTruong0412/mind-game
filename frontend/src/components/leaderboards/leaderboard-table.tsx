@@ -10,11 +10,12 @@ import type { LeaderboardEntry } from '@/types/api';
 
 interface LeaderboardTableProps {
   entries: LeaderboardEntry[];
+  currentUserId?: string;
   isLoading?: boolean;
   emptyMessage?: string;
 }
 
-export function LeaderboardTable({ entries, isLoading, emptyMessage }: LeaderboardTableProps) {
+export function LeaderboardTable({ entries, currentUserId, isLoading, emptyMessage }: LeaderboardTableProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -50,7 +51,7 @@ export function LeaderboardTable({ entries, isLoading, emptyMessage }: Leaderboa
           key={`${entry.user_id}-${entry.rank}`}
           className={cn(
             'flex items-center gap-4 p-4 rounded-lg transition-all',
-            entry.is_current_user
+            entry.user_id === currentUserId
               ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500'
               : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
           )}
@@ -63,26 +64,18 @@ export function LeaderboardTable({ entries, isLoading, emptyMessage }: Leaderboa
           {/* Avatar & Name */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              {entry.avatar_url ? (
-                <img
-                  src={entry.avatar_url}
-                  alt={entry.display_name}
-                  className="w-8 h-8 rounded-full"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-sm font-medium">
-                  {entry.display_name.charAt(0).toUpperCase()}
-                </div>
-              )}
+              <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-sm font-medium">
+                {entry.display_name ? entry.display_name.charAt(0).toUpperCase() : '?'}
+              </div>
               <div className="min-w-0">
                 <p className="font-medium truncate">
-                  {entry.display_name}
-                  {entry.is_current_user && (
+                  {entry.display_name ?? 'Anonymous'}
+                  {entry.user_id === currentUserId && (
                     <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">(You)</span>
                   )}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {new Date(entry.session_date).toLocaleDateString()}
+                  {new Date(entry.date).toLocaleDateString()}
                 </p>
               </div>
             </div>
@@ -90,10 +83,7 @@ export function LeaderboardTable({ entries, isLoading, emptyMessage }: Leaderboa
 
           {/* Time */}
           <div className="flex-shrink-0 text-right">
-            <div className="text-lg font-bold">{formatTimeShort(entry.completion_time * 1000)}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              {entry.grid_size}×{entry.grid_size} {entry.order_mode === 'sequential' ? '↑' : '↓'}
-            </div>
+            <div className="text-lg font-bold">{formatTimeShort(entry.best_time_ms)}</div>
           </div>
         </div>
       ))}

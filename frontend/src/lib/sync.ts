@@ -4,7 +4,11 @@
  */
 
 import { saveSession, syncSessions } from './api/sessions';
-import { db } from './db';
+import {
+  updateSessionSyncStatus,
+  getUnsyncedSessions,
+  getFailedSyncSessions,
+} from './db';
 import type { TrainingSession } from '@/types';
 
 export interface SyncResult {
@@ -20,20 +24,20 @@ export interface SyncResult {
 export async function syncSingleSession(session: TrainingSession): Promise<void> {
   try {
     // Mark as syncing
-    await db.updateSessionSyncStatus(session.oderId, 'syncing');
+    await updateSessionSyncStatus(session.oderId, 'syncing');
 
     // Save to backend
     const response = await saveSession(session);
 
-    // Mark as synced
-    await db.updateSessionSyncStatus(session.oderId, 'synced', {
-      cloudId: response.session.id,
-      syncedAt: response.session.created_at,
+    // Mark as synced — SaveSessionResponse is ApiTrainingSession (unwrapped)
+    await updateSessionSyncStatus(session.oderId, 'synced', {
+      cloudId: response.id,
+      syncedAt: response.created_at,
     });
   } catch (error) {
     // Mark as sync-failed
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    await db.updateSessionSyncStatus(session.oderId, 'sync-failed', {
+    await updateSessionSyncStatus(session.oderId, 'sync-failed', {
       syncError: errorMessage,
     });
     throw error;
@@ -54,7 +58,7 @@ export async function bulkSyncLocalSessions(): Promise<SyncResult> {
 
   try {
     // Get all local-only sessions
-    const localSessions = await db.getUnsyncedSessions();
+    const localSessions = await getUnsyncedSessions();
 
     if (localSessions.length === 0) {
       return result;
@@ -62,54 +66,33 @@ export async function bulkSyncLocalSessions(): Promise<SyncResult> {
 
     // Mark all as syncing
     await Promise.all(
-      localSessions.map((session) => db.updateSessionSyncStatus(session.oderId, 'syncing'))
+      localSessions.map((session) => updateSessionSyncStatus(session.oderId, 'syncing'))
     );
 
     // Bulk sync to backend
     const response = await syncSessions(localSessions);
 
-    result.syncedCount = response.synced_count;
-    result.failedCount = response.failed_count;
+    // Backend returns { synced, skipped } — both mean the session is on the server
+    result.syncedCount = response.synced + response.skipped;
+    result.failedCount = 0;
 
-    // Update sync status for successfully synced sessions
-    for (const cloudSession of response.sessions) {
+    // Mark all sent sessions as synced (idempotent — skipped = already existed)
+    for (const session of localSessions) {
       try {
-        await db.updateSessionSyncStatus(cloudSession.client_session_id, 'synced', {
-          cloudId: cloudSession.id,
-          syncedAt: cloudSession.created_at,
-        });
+        await updateSessionSyncStatus(session.oderId, 'synced');
       } catch (error) {
         console.error('Failed to update sync status:', error);
-      }
-    }
-
-    // Mark failed sessions
-    if (result.failedCount > 0) {
-      result.success = false;
-      // Note: Backend doesn't return which sessions failed,
-      // so we mark syncing sessions that weren't returned as failed
-      const syncedIds = new Set(response.sessions.map((s) => s.client_session_id));
-      const failedSessions = localSessions.filter((s) => !syncedIds.has(s.oderId));
-
-      for (const session of failedSessions) {
-        await db.updateSessionSyncStatus(session.oderId, 'sync-failed', {
-          syncError: 'Sync failed on server',
-        });
-        result.errors.push({
-          sessionId: session.oderId,
-          error: 'Sync failed on server',
-        });
       }
     }
 
     return result;
   } catch (error) {
     // If bulk sync fails completely, mark all as failed
-    const localSessions = await db.getUnsyncedSessions();
+    const localSessions = await getUnsyncedSessions();
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
     for (const session of localSessions) {
-      await db.updateSessionSyncStatus(session.oderId, 'sync-failed', {
+      await updateSessionSyncStatus(session.oderId, 'sync-failed', {
         syncError: errorMessage,
       });
       result.errors.push({
@@ -137,7 +120,7 @@ export async function retryFailedSyncs(): Promise<SyncResult> {
   };
 
   try {
-    const failedSessions = await db.getFailedSyncSessions();
+    const failedSessions = await getFailedSyncSessions();
 
     for (const session of failedSessions) {
       try {

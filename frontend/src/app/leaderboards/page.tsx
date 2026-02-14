@@ -21,12 +21,12 @@ type LeaderboardType = 'daily' | 'all-time';
 
 export default function LeaderboardsPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { language, t } = useLanguage();
 
   const [leaderboardType, setLeaderboardType] = useState<LeaderboardType>('daily');
   const [gridSize, setGridSize] = useState(5);
-  const [orderMode, setOrderMode] = useState<'sequential' | 'random'>('sequential');
+  const [orderMode, setOrderMode] = useState<'ASC' | 'DESC'>('ASC');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,14 +52,14 @@ export default function LeaderboardsPage() {
           gridSize,
           orderMode,
         });
-        setEntries(response.entries);
+        setEntries(response.data);
       } else {
         const response = await getAllTimeLeaderboard({
           gridSize,
           orderMode,
           limit: 50,
         });
-        setEntries(response.entries);
+        setEntries(response.data);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load leaderboard');
@@ -142,6 +142,7 @@ export default function LeaderboardsPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
           <LeaderboardTable
             entries={entries}
+            currentUserId={user?.id}
             isLoading={isLoading}
             emptyMessage={
               language === 'vi'

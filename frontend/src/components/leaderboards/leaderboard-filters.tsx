@@ -10,10 +10,10 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface LeaderboardFiltersProps {
   gridSize: number;
-  orderMode: 'sequential' | 'random';
+  orderMode: 'ASC' | 'DESC';
   selectedDate?: Date;
   onGridSizeChange: (size: number) => void;
-  onOrderModeChange: (mode: 'sequential' | 'random') => void;
+  onOrderModeChange: (mode: 'ASC' | 'DESC') => void;
   onDateChange?: (date: Date) => void;
   showDatePicker?: boolean;
   language: 'en' | 'vi';
@@ -143,10 +143,10 @@ export function LeaderboardFilters({
         </label>
         <div className="flex gap-2">
           <button
-            onClick={() => onOrderModeChange('sequential')}
+            onClick={() => onOrderModeChange('ASC')}
             className={cn(
               'flex-1 py-3 rounded-lg font-medium transition-all',
-              orderMode === 'sequential'
+              orderMode === 'ASC'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
             )}
@@ -154,10 +154,10 @@ export function LeaderboardFilters({
             1 → {gridSize * gridSize}
           </button>
           <button
-            onClick={() => onOrderModeChange('random')}
+            onClick={() => onOrderModeChange('DESC')}
             className={cn(
               'flex-1 py-3 rounded-lg font-medium transition-all',
-              orderMode === 'random'
+              orderMode === 'DESC'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
             )}

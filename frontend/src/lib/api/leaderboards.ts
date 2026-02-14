@@ -12,17 +12,24 @@ import type {
 const API_PREFIX = '/api/v1';
 
 /**
+ * Convert frontend orderMode ('ASC'|'DESC') to backend format
+ */
+function toApiOrderMode(orderMode: 'ASC' | 'DESC'): string {
+  return orderMode;
+}
+
+/**
  * Get daily leaderboard for a specific date and configuration
  */
 export async function getDailyLeaderboard(params: {
-  date?: string; // ISO date string, defaults to today
+  date?: string;
   gridSize: number;
-  orderMode: 'sequential' | 'random';
+  orderMode: 'ASC' | 'DESC';
 }): Promise<DailyLeaderboardResponse> {
   const client = getApiClient();
   const queryParams = new URLSearchParams({
     grid_size: params.gridSize.toString(),
-    order_mode: params.orderMode,
+    order_mode: toApiOrderMode(params.orderMode),
     ...(params.date && { date: params.date }),
   });
 
@@ -36,13 +43,13 @@ export async function getDailyLeaderboard(params: {
  */
 export async function getAllTimeLeaderboard(params: {
   gridSize: number;
-  orderMode: 'sequential' | 'random';
+  orderMode: 'ASC' | 'DESC';
   limit?: number;
 }): Promise<AllTimeLeaderboardResponse> {
   const client = getApiClient();
   const queryParams = new URLSearchParams({
     grid_size: params.gridSize.toString(),
-    order_mode: params.orderMode,
+    order_mode: toApiOrderMode(params.orderMode),
     ...(params.limit && { limit: params.limit.toString() }),
   });
 
