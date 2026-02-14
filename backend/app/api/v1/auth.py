@@ -14,6 +14,7 @@ from app.schemas.auth import (
     RegisterRequest,
     ResetPasswordRequest,
     SocialAuthRequest,
+    UserInfo,
 )
 from app.services.auth import AuthService
 
@@ -162,20 +163,20 @@ async def reset_password(body: ResetPasswordRequest) -> MessageResponse:
     return MessageResponse(message="Password reset successfully. You can now log in.")
 
 
-@router.post("/social/google", response_model=TokenResponse)
+@router.post("/social/google", response_model=LoginResponse)
 async def social_google(
     body: SocialAuthRequest,
     db: AsyncSession = Depends(get_db),
-) -> TokenResponse:
+) -> LoginResponse:
     """Authenticate via Google OAuth (exchange Cognito authorization code)."""
     return await _handle_social_auth(body.code, db)
 
 
-@router.post("/social/apple", response_model=TokenResponse)
+@router.post("/social/apple", response_model=LoginResponse)
 async def social_apple(
     body: SocialAuthRequest,
     db: AsyncSession = Depends(get_db),
-) -> TokenResponse:
+) -> LoginResponse:
     """Authenticate via Apple Sign In (exchange Cognito authorization code)."""
     return await _handle_social_auth(body.code, db)
 
@@ -183,9 +184,8 @@ async def social_apple(
 async def _handle_social_auth(
     code: str,
     db: AsyncSession,
-) -> TokenResponse:
+) -> LoginResponse:
     """Shared logic for social auth: exchange code, ensure user exists."""
-    from app.config import get_settings
     from app.core.security import verify_token
 
     settings = get_settings()
@@ -205,10 +205,21 @@ async def _handle_social_auth(
     user_repo = UserRepository(db)
     user = await user_repo.get_by_cognito_sub(cognito_sub)
     if user is None:
-        await user_repo.create(
+        user = await user_repo.create(
             cognito_sub=cognito_sub,
             email=email,
             display_name=display_name,
         )
 
-    return TokenResponse(**tokens)
+    return LoginResponse(
+        access_token=tokens["access_token"],
+        id_token=tokens["id_token"],
+        token_type="Bearer",
+        expires_in=tokens["expires_in"],
+        user=UserInfo(
+            id=cognito_sub,
+            email=user.email,
+            display_name=user.display_name,
+            avatar_url=user.avatar_url,
+        ),
+    )

@@ -5,7 +5,7 @@
 # =============================================================================
 
 # AWS CLI profile (setup: aws configure --profile schulte-dev)
-aws_profile  = "schulte-dev"
+aws_profile  = "schulte_table"
 
 aws_region   = "ap-southeast-1"
 project_name = "schulte-app"

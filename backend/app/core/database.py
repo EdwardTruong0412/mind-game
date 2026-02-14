@@ -42,6 +42,14 @@ engine = create_async_engine(
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
 
 
+async def init_db(database_url: str) -> None:
+    """Recreate the engine with a new URL (call after loading SSM password)."""
+    global engine, async_session_factory
+    await engine.dispose()
+    engine = create_async_engine(database_url, echo=settings.debug, pool_size=5, max_overflow=10)
+    async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_factory() as session:
         try:

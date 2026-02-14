@@ -155,7 +155,7 @@ resource "aws_security_group" "ec2" {
 
 resource "aws_security_group" "rds" {
   name        = "${var.project_name}-${var.environment}-rds-sg"
-  description = "Security group for RDS — only accessible from EC2"
+  description = "Security group for RDS - only accessible from EC2"
   vpc_id      = aws_vpc.main.id
 
   ingress {

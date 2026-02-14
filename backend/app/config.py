@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     # App
     app_environment: str = "dev"
     debug: bool = False
+    db_ssl: bool = False  # Set True in AWS (RDS requires SSL)
 
     # Database
     db_host: str = "localhost"
@@ -34,17 +35,19 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
+        ssl_suffix = "?ssl=require" if self.db_ssl else ""
         return (
             f"postgresql+asyncpg://{self.db_username}:{self.db_password}"
-            f"@{self.db_host}:{self.db_port}/{self.db_name}"
+            f"@{self.db_host}:{self.db_port}/{self.db_name}{ssl_suffix}"
         )
 
     @property
     def database_url_sync(self) -> str:
         """Sync URL for Alembic migrations."""
+        ssl_suffix = "?sslmode=require" if self.db_ssl else ""
         return (
             f"postgresql://{self.db_username}:{self.db_password}"
-            f"@{self.db_host}:{self.db_port}/{self.db_name}"
+            f"@{self.db_host}:{self.db_port}/{self.db_name}{ssl_suffix}"
         )
 
     @property

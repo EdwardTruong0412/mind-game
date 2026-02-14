@@ -6,7 +6,7 @@ RUN pip install --no-cache-dir poetry && \
     poetry config virtualenvs.create false
 
 COPY pyproject.toml poetry.lock* ./
-RUN poetry install --no-dev --no-root --no-interaction
+RUN poetry install --only main --no-root --no-interaction
 
 COPY app/ ./app/
 COPY alembic/ ./alembic/

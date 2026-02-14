@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from app.api.v1.router import api_router
 from app.config import get_settings
-from app.core.database import engine
+import app.core.database as db_module
 
 logger = structlog.get_logger()
 
@@ -25,8 +25,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         debug=settings.debug,
     )
 
-    # Load DB password from SSM if running in AWS
-    if settings.db_password_ssm_path and settings.app_environment != "dev":
+    # Load DB password from SSM if path is configured (AWS deployment)
+    if settings.db_password_ssm_path:
         try:
             import boto3
 
@@ -37,13 +37,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             )
             settings.db_password = response["Parameter"]["Value"]
             logger.info("ssm_password_loaded", path=settings.db_password_ssm_path)
+            # Recreate DB engine with the real password
+            await db_module.init_db(settings.database_url)
         except Exception as e:
             logger.error("ssm_password_error", error=str(e))
 
     yield
 
     # Shutdown
-    await engine.dispose()
+    await db_module.engine.dispose()
     logger.info("app_shutdown")
 
 
@@ -73,7 +75,7 @@ app.include_router(api_router)
 async def health_check() -> dict[str, str]:
     """Health check endpoint."""
     try:
-        async with engine.begin() as conn:
+        async with db_module.engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
         return {"status": "healthy", "database": "connected"}
     except Exception as e:

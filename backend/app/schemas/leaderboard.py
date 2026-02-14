@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date as Date
 
 from pydantic import BaseModel, Field
 
@@ -9,7 +9,7 @@ class LeaderboardEntry(BaseModel):
     user_id: uuid.UUID
     display_name: str | None
     best_time_ms: int
-    date: date
+    date: Date
 
     model_config = {"from_attributes": True}
 
@@ -22,7 +22,7 @@ class CurrentUserRank(BaseModel):
 class LeaderboardMeta(BaseModel):
     grid_size: int
     order_mode: str
-    date: date | None = None
+    date: Date | None = None
     total_entries: int
 
 
